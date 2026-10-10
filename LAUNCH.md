@@ -128,7 +128,9 @@ Computed styles in Chrome matched those tokens. A human screen reader was not us
 
 ## Deploy plan
 
-Publish the `out/` directory to GitHub Pages over HTTPS. Do not add a workflow that deploys on push until you choose to. Nothing in the app calls a server. Habit data stays in the browser.
+Publish with `.github/workflows/pages.yml`. A push to `main` on GitHub runs the tests, builds `out/`, and deploys that directory with GitHub Actions. Nothing in the app calls a server. Habit data stays in the browser.
+
+This cloud session cannot see your computer’s Coding Projects folder and is not logged into GitHub, so the repo and the Pages site still have to be created from a machine where `gh auth status` succeeds.
 
 User site (`https://<user>.github.io/`): leave `NEXT_PUBLIC_BASE_PATH` unset. Asset and flag URLs stay root-relative.
 
