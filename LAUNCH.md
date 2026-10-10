@@ -9,7 +9,7 @@ Weekly habits stay off. `public/flags.json` ships `"weeklyHabits": false`.
 ## What changed to clear the no-go
 
 - `npm audit` is clean: 0 critical, high, moderate, or low. Vitest is 5.0.3. `postcss` is pinned to 8.5.29 with an npm override so Next's copy is the patched line. Next stays on 15.5.27.
-- The static page sends a content security policy in a meta tag. `public/frame-guard.js` stops the page when it is framed, because a meta policy cannot set `frame-ancestors`. GitHub Pages does not apply `public/_headers`.
+- The static page sends a content security policy in a meta tag. `public/frame-guard.js` stops the page when it is framed, because a meta policy cannot set `frame-ancestors`. GitHub Pages does not apply `public/_headers`. The local dev server adds `'unsafe-eval'` so Next can start the page; the production policy does not.
 - Flag reads use `cache: "no-store"`.
 - A render failure shows a generic reload screen and appends `{ at, message: "Habits failed to render." }` to `habit-tracker:errors` on the device. Stacks and habit names are not stored.
 - Lighthouse, axe, contrast, and the accessibility tree were measured on the production export. Figures are below.

@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CLIENT_ERROR_MESSAGE, recordClientError } from "../src/lib/client-errors";
-import { CONTENT_SECURITY_POLICY } from "../src/lib/csp";
+import { CONTENT_SECURITY_POLICY, contentSecurityPolicy } from "../src/lib/csp";
 import { publicPath } from "../src/lib/public-path";
 import { HabitsErrorFallback } from "../src/components/error-boundary";
 
@@ -43,6 +43,11 @@ describe("content security policy", () => {
     expect(CONTENT_SECURITY_POLICY).not.toContain("unsafe-eval");
     expect(CONTENT_SECURITY_POLICY).not.toContain("frame-ancestors");
     expect(CONTENT_SECURITY_POLICY).toContain("object-src 'none'");
+  });
+
+  it("allows eval only while the local dev server is running", () => {
+    expect(contentSecurityPolicy("development")).toContain("'unsafe-eval'");
+    expect(contentSecurityPolicy("production")).not.toContain("unsafe-eval");
   });
 });
 
