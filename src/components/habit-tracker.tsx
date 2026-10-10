@@ -12,6 +12,7 @@ import {
   type HabitStore,
   type LoadResult,
 } from "@/lib/habit-store";
+import { publicPath } from "@/lib/public-path";
 import { streakLength } from "@/lib/streak";
 import { loadHabits, saveHabits } from "@/lib/storage";
 import { toggleCompletion } from "@/lib/toggle-completion";
@@ -70,7 +71,7 @@ export function HabitTracker() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/flags.json")
+    fetch(publicPath("/flags.json"), { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
         if (!cancelled) setWeeklyEnabled(readWeeklyHabitsFlag(payload));
@@ -146,7 +147,7 @@ export function HabitTracker() {
       <header className="mb-6">
         <p className="text-sm text-[var(--ink-muted)]">{formatLocalDate(today)}</p>
         <h1 className="mt-1 font-serif text-4xl tracking-tight">Habits</h1>
-        <p className="mt-2 text-sm text-[var(--ink-muted)]">Stored on this device.</p>
+        <p className="mt-2 max-w-sm text-xl leading-snug">Your habits stay on this device.</p>
       </header>
 
       {view.kind === "loading" ? (
@@ -229,16 +230,19 @@ export function HabitTracker() {
                       type="checkbox"
                       className="mt-1 h-5 w-5 accent-[var(--green)]"
                       checked={done}
-                      aria-describedby={`streak-${habit.id}`}
+                      aria-describedby={`streak-text-${habit.id}`}
                       onChange={(event) => markToday(habit.id, event.target.checked)}
                     />
                     <div className="min-w-0 flex-1">
                       <HabitName id={habit.id} name={habit.name} />
-                      <p id={`streak-${habit.id}`} className="mt-0.5 text-sm text-[var(--ink-muted)]">
+                      <p id={`streak-${habit.id}`} className="mt-0.5 text-sm text-[var(--ink-muted)]" aria-hidden="true">
                         <span className={done ? "text-[var(--green)]" : undefined}>{doneLabel}</span>
-                        <span aria-hidden="true"> · </span>
+                        <span> · </span>
                         <span>{streakLabel}</span>
                       </p>
+                      <span id={`streak-text-${habit.id}`} className="sr-only">
+                        {doneLabel}, {streakLabel}
+                      </span>
                     </div>
                   </li>
                 );

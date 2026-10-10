@@ -17,7 +17,7 @@ npm run lint
 npm run build
 ```
 
-Launch checks, the static-host upload, and rollback are in `LAUNCH.md`. The current decision is no-go. Weekly habits stay off unless `public/flags.json` sets `weeklyHabits` to true.
+Launch checks, the GitHub Pages upload, and rollback are in `LAUNCH.md`. The current decision is go for that upload, with the weekly flag off. Weekly habits stay off unless `public/flags.json` sets `weeklyHabits` to true. A project site needs `NEXT_PUBLIC_BASE_PATH=/<repo>` at build time. A user site and local dev leave it unset.
 
 ## Storage
 

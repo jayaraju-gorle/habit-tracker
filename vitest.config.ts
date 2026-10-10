@@ -1,8 +1,15 @@
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
+const root = fileURLToPath(new URL(".", import.meta.url));
+
 export default defineConfig({
-  esbuild: {
-    jsx: "automatic",
+  oxc: {
+    jsx: { runtime: "automatic" },
+  },
+  resolve: {
+    alias: { "@": resolve(root, "src") },
   },
   test: {
     environment: "node",
