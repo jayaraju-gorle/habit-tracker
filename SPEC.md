@@ -129,6 +129,15 @@ Write rules:
 - Reset writes `{ "version": 1, "habits": [] }`.
 - If `setItem` throws (quota or storage disabled), keep the in-memory screen as it was before the failed change and show a save-error message.
 
+Load and save results:
+
+- Missing key, or a blank value: ready empty v1 store. Load writes nothing.
+- Version 1 with a valid shape: ready. Completion dates are unique and sorted.
+- Older version 0, including a versionless `{ habits: [{ name, completedDates }] }` object: migrate in memory to v1 daily habits. `migratedFrom` is `0`. Load writes nothing; the app saves the migrated store. Empty names and impossible dates are dropped.
+- Version greater than 1: `future-version`. The saved bytes stay in place.
+- Unreadable JSON, or a version 1 object that breaks the schema: `corrupt`. The saved bytes stay in place until Reset.
+- A throwing read or write: `unavailable`. A rejected save leaves the previous value in place.
+
 Name rules:
 
 - Trim leading and trailing whitespace before save.
