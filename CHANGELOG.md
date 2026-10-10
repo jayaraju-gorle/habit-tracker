@@ -16,6 +16,7 @@
 - The header says “Your habits stay on this device.” so the largest text is in the first HTML.
 - The habit checkbox description is “Done today, 1-day streak” (or the weekly equivalent).
 - Local development allows `'unsafe-eval'` in the content security policy so the page can leave the loading state. Production does not.
+- The date is filled in after the page reaches the browser, so a UTC server and a local calendar day no longer disagree during hydration.
 
 ### Security
 

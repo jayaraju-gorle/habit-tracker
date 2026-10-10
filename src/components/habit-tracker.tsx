@@ -47,11 +47,12 @@ export function HabitTracker() {
   const [cadence, setCadence] = useState<"daily" | "weekly">("daily");
   const [weeklyEnabled, setWeeklyEnabled] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
-  const [today] = useState(() => new Date());
-  const todayKey = localDateKey(today);
-  const weekKey = isoWeekKey(today);
+  const [today, setToday] = useState<Date | null>(null);
+  const todayKey = today ? localDateKey(today) : "";
+  const weekKey = today ? isoWeekKey(today) : "";
 
   useEffect(() => {
+    setToday(new Date());
     const result = loadHabits(window.localStorage);
     if (result.status === "ready" && result.migratedFrom !== null) {
       const saved = saveHabits(window.localStorage, result.store);
@@ -102,7 +103,7 @@ export function HabitTracker() {
 
   function addHabit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (view.kind !== "ready") return;
+    if (view.kind !== "ready" || !today) return;
     const trimmed = name.trim();
     if (trimmed.length < 1 || trimmed.length > 80) {
       setNameError("Use 1–80 characters.");
@@ -145,12 +146,12 @@ export function HabitTracker() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col px-4 py-8 sm:px-6 sm:py-12">
       <header className="mb-6">
-        <p className="text-sm text-[var(--ink-muted)]">{formatLocalDate(today)}</p>
+        <p className="min-h-5 text-sm text-[var(--ink-muted)]">{today ? formatLocalDate(today) : "\u00a0"}</p>
         <h1 className="mt-1 font-serif text-4xl tracking-tight">Habits</h1>
         <p className="mt-2 max-w-sm text-xl leading-snug">Your habits stay on this device.</p>
       </header>
 
-      {view.kind === "loading" ? (
+      {view.kind === "loading" || !today ? (
         <p role="status" className="text-sm text-[var(--ink-muted)]">
           Loading habits
         </p>
@@ -187,7 +188,7 @@ export function HabitTracker() {
         </section>
       ) : null}
 
-      {view.kind === "ready" ? (
+      {view.kind === "ready" && today ? (
         <section className="rounded-md border border-[var(--line)] bg-[var(--sheet)] px-4 py-4 sm:px-5" aria-labelledby="today-heading">
           <h2 id="today-heading" className="text-sm font-semibold tracking-wide text-[var(--ink-muted)] uppercase">
             Today
