@@ -17,6 +17,8 @@ npm run lint
 npm run build
 ```
 
+Launch checks, the static-host upload, and rollback are in `LAUNCH.md`. The current decision is no-go. Weekly habits stay off unless `public/flags.json` sets `weeklyHabits` to true.
+
 ## Storage
 
 `loadHabits` and `saveHabits` in `src/lib/storage.ts` follow the contract in `src/lib/habit-store.ts`.

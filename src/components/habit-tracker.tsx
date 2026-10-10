@@ -5,6 +5,8 @@ import { HabitName } from "@/components/habit-name";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatLocalDate, localDateKey } from "@/lib/dates";
+import { habitTypes, readWeeklyHabitsFlag } from "@/lib/flags";
+import { isoWeekKey, weeklyStreakLength } from "@/lib/weeks";
 import {
   type Habit,
   type HabitStore,
@@ -41,9 +43,12 @@ export function HabitTracker() {
   const errorId = useId();
   const [view, setView] = useState<View>({ kind: "loading" });
   const [name, setName] = useState("");
+  const [cadence, setCadence] = useState<"daily" | "weekly">("daily");
+  const [weeklyEnabled, setWeeklyEnabled] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [today] = useState(() => new Date());
   const todayKey = localDateKey(today);
+  const weekKey = isoWeekKey(today);
 
   useEffect(() => {
     const result = loadHabits(window.localStorage);
@@ -61,6 +66,21 @@ export function HabitTracker() {
       return;
     }
     setView(viewFromLoad(result));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/flags.json")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!cancelled) setWeeklyEnabled(readWeeklyHabitsFlag(payload));
+      })
+      .catch(() => {
+        if (!cancelled) setWeeklyEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function persist(next: HabitStore, previous: HabitStore) {
@@ -90,11 +110,12 @@ export function HabitTracker() {
     const habit: Habit = {
       id: crypto.randomUUID(),
       name: trimmed,
-      cadence: "daily",
+      cadence: weeklyEnabled && cadence === "weekly" ? "weekly" : "daily",
       createdAt: today.toISOString(),
       completions: [],
     };
     setName("");
+    setCadence("daily");
     setNameError(null);
     persist({ version: 1, habits: [...view.store.habits, habit] }, view.store);
   }
@@ -103,9 +124,10 @@ export function HabitTracker() {
     if (view.kind !== "ready") return;
     const habits = view.store.habits.map((habit) => {
       if (habit.id !== habitId) return habit;
-      const currentlyDone = habit.completions.includes(todayKey);
+      const period = habit.cadence === "weekly" ? weekKey : todayKey;
+      const currentlyDone = habit.completions.includes(period);
       if (currentlyDone === checked) return habit;
-      return toggleCompletion(habit, todayKey);
+      return toggleCompletion(habit, period);
     });
     persist({ version: 1, habits }, view.store);
   }
@@ -183,9 +205,23 @@ export function HabitTracker() {
           ) : (
             <ul className="mt-3 divide-y divide-[var(--line)]">
               {view.store.habits.map((habit) => {
-                const done = habit.completions.includes(todayKey);
-                const streak = streakLength(habit.completions, todayKey);
-                const streakLabel = streak === 1 ? "1-day streak" : streak === 0 ? "No streak yet" : `${streak}-day streak`;
+                const period = habit.cadence === "weekly" ? weekKey : todayKey;
+                const done = habit.completions.includes(period);
+                const streak =
+                  habit.cadence === "weekly"
+                    ? weeklyStreakLength(habit.completions, weekKey)
+                    : streakLength(habit.completions, todayKey);
+                const unit = habit.cadence === "weekly" ? "week" : "day";
+                const streakLabel =
+                  streak === 1 ? `1-${unit} streak` : streak === 0 ? "No streak yet" : `${streak}-${unit} streak`;
+                const doneLabel =
+                  habit.cadence === "weekly"
+                    ? done
+                      ? "Done this week"
+                      : "Not done this week"
+                    : done
+                      ? "Done today"
+                      : "Not done today";
                 return (
                   <li key={habit.id} className="flex items-start gap-3 py-3">
                     <input
@@ -199,7 +235,7 @@ export function HabitTracker() {
                     <div className="min-w-0 flex-1">
                       <HabitName id={habit.id} name={habit.name} />
                       <p id={`streak-${habit.id}`} className="mt-0.5 text-sm text-[var(--ink-muted)]">
-                        <span className={done ? "text-[var(--green)]" : undefined}>{done ? "Done today" : "Not done today"}</span>
+                        <span className={done ? "text-[var(--green)]" : undefined}>{doneLabel}</span>
                         <span aria-hidden="true"> · </span>
                         <span>{streakLabel}</span>
                       </p>
@@ -214,6 +250,26 @@ export function HabitTracker() {
             <label htmlFor={nameId} className="text-sm font-medium">
               New habit
             </label>
+            {weeklyEnabled ? (
+              <div className="mt-3">
+                <label htmlFor={`${nameId}-type`} className="text-sm font-medium">
+                  Habit type
+                </label>
+                <select
+                  id={`${nameId}-type`}
+                  name="habit-type"
+                  value={cadence}
+                  onChange={(event) => setCadence(event.target.value === "weekly" ? "weekly" : "daily")}
+                  className="mt-2 h-10 w-full rounded-md border border-[var(--line)] bg-white px-3 sm:w-40"
+                >
+                  {habitTypes(true).map((type) => (
+                    <option key={type} value={type}>
+                      {type === "weekly" ? "Weekly" : "Daily"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <Input
                 id={nameId}
