@@ -162,6 +162,99 @@ describe("loadHabits", () => {
     expect(storage.data[HABIT_STORAGE_KEY]).toBe(payload);
   });
 
+  it("keeps a markup-looking name as plain text and drops unknown fields", () => {
+    const payload =
+      '{"version":1,"habits":[{"id":"habit-read","name":"<img src=x onerror=\\"alert(1)\\">","cadence":"daily","createdAt":"2026-10-05T12:00:00.000Z","completions":["2026-10-05"],"html":"<script>alert(1)</script>","__proto__":{"admin":true}}]}';
+    const storage = memoryStorage({ [HABIT_STORAGE_KEY]: payload });
+
+    const result = loadHabits(storage);
+
+    expect(result).toEqual({
+      status: "ready",
+      migratedFrom: null,
+      store: {
+        version: 1,
+        habits: [{ ...readHabit, name: '<img src=x onerror="alert(1)">' }],
+      },
+    });
+    expect(Object.prototype).not.toHaveProperty("admin");
+  });
+
+  it("rejects a name with a control character and leaves the bytes in place", () => {
+    const payload = JSON.stringify({
+      version: 1,
+      habits: [{ ...readHabit, name: "Read\n<script>" }],
+    });
+    const storage = memoryStorage({ [HABIT_STORAGE_KEY]: payload });
+
+    expect(loadHabits(storage)).toEqual({ status: "corrupt" });
+    expect(storage.data[HABIT_STORAGE_KEY]).toBe(payload);
+  });
+
+  it("rejects an id that is not a safe token", () => {
+    const payload = JSON.stringify({
+      version: 1,
+      habits: [{ ...readHabit, id: '"><img src=x>' }],
+    });
+    const storage = memoryStorage({ [HABIT_STORAGE_KEY]: payload });
+
+    expect(loadHabits(storage)).toEqual({ status: "corrupt" });
+    expect(storage.data[HABIT_STORAGE_KEY]).toBe(payload);
+  });
+
+  it("rejects duplicate ids", () => {
+    const payload = JSON.stringify({
+      version: 1,
+      habits: [readHabit, { ...readHabit, name: "Walk" }],
+    });
+    const storage = memoryStorage({ [HABIT_STORAGE_KEY]: payload });
+
+    expect(loadHabits(storage)).toEqual({ status: "corrupt" });
+    expect(storage.data[HABIT_STORAGE_KEY]).toBe(payload);
+  });
+
+  it("rejects a completion that is not a calendar date", () => {
+    const payload = JSON.stringify({
+      version: 1,
+      habits: [{ ...readHabit, completions: ["2026-10-05", "<script>"] }],
+    });
+    const storage = memoryStorage({ [HABIT_STORAGE_KEY]: payload });
+
+    expect(loadHabits(storage)).toEqual({ status: "corrupt" });
+    expect(storage.data[HABIT_STORAGE_KEY]).toBe(payload);
+  });
+
+  it("rejects more than 100 habits", () => {
+    const habits = Array.from({ length: 101 }, (_, index) => ({
+      ...readHabit,
+      id: `habit-${index}`,
+    }));
+    const payload = JSON.stringify({ version: 1, habits });
+    const storage = memoryStorage({ [HABIT_STORAGE_KEY]: payload });
+
+    expect(loadHabits(storage)).toEqual({ status: "corrupt" });
+    expect(storage.data[HABIT_STORAGE_KEY]).toBe(payload);
+  });
+
+  it("rejects more than 2000 completion entries", () => {
+    const payload = JSON.stringify({
+      version: 1,
+      habits: [{ ...readHabit, completions: Array.from({ length: 2001 }, () => "2026-10-05") }],
+    });
+    const storage = memoryStorage({ [HABIT_STORAGE_KEY]: payload });
+
+    expect(loadHabits(storage)).toEqual({ status: "corrupt" });
+    expect(storage.data[HABIT_STORAGE_KEY]).toBe(payload);
+  });
+
+  it("rejects a payload larger than 100000 characters before using it", () => {
+    const payload = `{"version":1,"habits":[]}${" ".repeat(100000)}`;
+    const storage = memoryStorage({ [HABIT_STORAGE_KEY]: payload });
+
+    expect(loadHabits(storage)).toEqual({ status: "corrupt" });
+    expect(storage.data[HABIT_STORAGE_KEY]).toBe(payload);
+  });
+
   it("reports unavailable when reading throws", () => {
     const storage = {
       getItem() {
@@ -231,6 +324,21 @@ describe("saveHabits", () => {
       saveHabits(storage, {
         version: 1,
         habits: [{ ...readHabit, name: "a".repeat(81) }],
+      }),
+    ).toEqual({
+      status: "invalid",
+      message: "Habit name must be 1–80 characters.",
+    });
+    expect(storage.data).toEqual({});
+  });
+
+  it("rejects a control character in a name before writing", () => {
+    const storage = memoryStorage();
+
+    expect(
+      saveHabits(storage, {
+        version: 1,
+        habits: [{ ...readHabit, name: "Read\u202E" }],
       }),
     ).toEqual({
       status: "invalid",

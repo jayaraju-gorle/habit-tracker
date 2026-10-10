@@ -13,8 +13,13 @@
  * daily. Empty names and names over 80 characters are dropped. Date strings
  * that are not real `YYYY-MM-DD` days are dropped. `migratedFrom` is `0`.
  * Version greater than 1: `future-version`. The bytes stay untouched.
- * JSON that does not parse, or a v1 object that fails the schema: `corrupt`.
- * The bytes stay untouched until the caller saves a replacement.
+ * JSON that does not parse, a payload over 100000 characters, or a v1 object
+ * that fails the schema: `corrupt`. The bytes stay untouched until the caller
+ * saves a replacement. Names are plain text: control characters and
+ * bidirectional overrides are rejected, and markup characters are kept as
+ * text. Ids are tokens of letters, digits, `_`, and `-`. Completion lists
+ * that contain a non-date, duplicate ids, more than 100 habits, or more than
+ * 2000 completion entries are corrupt.
  * `getItem` or `setItem` throwing: `unavailable`. Save does not change the
  * previous value when validation fails or the write throws.
  */

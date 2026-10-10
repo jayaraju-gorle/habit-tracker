@@ -135,7 +135,9 @@ Load and save results:
 - Version 1 with a valid shape: ready. Completion dates are unique and sorted.
 - Older version 0, including a versionless `{ habits: [{ name, completedDates }] }` object: migrate in memory to v1 daily habits. `migratedFrom` is `0`. Load writes nothing; the app saves the migrated store. Empty names and impossible dates are dropped.
 - Version greater than 1: `future-version`. The saved bytes stay in place.
-- Unreadable JSON, or a version 1 object that breaks the schema: `corrupt`. The saved bytes stay in place until Reset.
+- Unreadable JSON, a payload over 100000 characters, or a version 1 object that breaks the schema: `corrupt`. The saved bytes stay in place until Reset.
+- A version 1 habit is corrupt when its id is not a token of letters, digits, `_`, and `-`, when two habits share an id, when a completion is not a real `YYYY-MM-DD` date, when the name contains a control character or bidirectional override, when there are more than 100 habits, or when one habit has more than 2000 completion entries.
+- A name that looks like HTML is stored and shown as text. The page does not parse it as markup.
 - A throwing read or write: `unavailable`. A rejected save leaves the previous value in place.
 
 Name rules:

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { HabitName } from "@/components/habit-name";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatLocalDate, localDateKey } from "@/lib/dates";
@@ -196,9 +197,7 @@ export function HabitTracker() {
                       onChange={(event) => markToday(habit.id, event.target.checked)}
                     />
                     <div className="min-w-0 flex-1">
-                      <label htmlFor={`habit-${habit.id}`} className="block text-base font-medium">
-                        {habit.name}
-                      </label>
+                      <HabitName id={habit.id} name={habit.name} />
                       <p id={`streak-${habit.id}`} className="mt-0.5 text-sm text-[var(--ink-muted)]">
                         <span className={done ? "text-[var(--green)]" : undefined}>{done ? "Done today" : "Not done today"}</span>
                         <span aria-hidden="true"> · </span>

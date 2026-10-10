@@ -11,6 +11,12 @@ import {
 } from "./habit-store";
 
 const NAME_MESSAGE = "Habit name must be 1–80 characters.";
+const MAX_RAW_LENGTH = 100_000;
+const MAX_HABITS = 100;
+const MAX_COMPLETIONS = 2000;
+const UNSAFE_NAME = /[\u0000-\u001F\u007F\u202A-\u202E\u2066-\u2069]/;
+const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
+const CREATED_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
 function emptyStore(): HabitStore {
   return { version: CURRENT_STORE_VERSION, habits: [] };
@@ -31,18 +37,38 @@ function isIsoDate(value: string): boolean {
   );
 }
 
-function normalizeDates(values: unknown): string[] | null {
-  if (!Array.isArray(values) || values.some((value) => typeof value !== "string")) {
-    return null;
-  }
-  return [...new Set(values.filter(isIsoDate))].sort();
+function strictDates(values: unknown): string[] | null {
+  if (!Array.isArray(values) || values.length > MAX_COMPLETIONS) return null;
+  if (values.some((value) => typeof value !== "string" || !isIsoDate(value))) return null;
+  return [...new Set(values)].sort();
+}
+
+function looseDates(values: unknown[]): string[] | null {
+  if (values.length > MAX_COMPLETIONS) return null;
+  if (values.some((value) => typeof value !== "string")) return null;
+  const dates = values as string[];
+  return [...new Set(dates.filter(isIsoDate))].sort();
 }
 
 function normalizeName(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const name = value.trim();
   if (name.length < 1 || name.length > 80) return null;
+  if (UNSAFE_NAME.test(name)) return null;
   return name;
+}
+
+function isSafeId(value: unknown): value is string {
+  return typeof value === "string" && SAFE_ID.test(value);
+}
+
+function isCreatedAt(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length <= 40 &&
+    CREATED_AT.test(value) &&
+    !Number.isNaN(Date.parse(value))
+  );
 }
 
 function isCadence(value: unknown): value is Cadence {
@@ -50,24 +76,25 @@ function isCadence(value: unknown): value is Cadence {
 }
 
 function readV1(value: Record<string, unknown>): HabitStore | null {
-  if (!Array.isArray(value.habits)) return null;
+  if (!Array.isArray(value.habits) || value.habits.length > MAX_HABITS) return null;
   const habits: Habit[] = [];
+  const ids = new Set<string>();
   for (const entry of value.habits) {
     if (!isRecord(entry)) return null;
     const name = normalizeName(entry.name);
-    const completions = normalizeDates(entry.completions);
+    const completions = strictDates(entry.completions);
     if (
-      typeof entry.id !== "string" ||
-      entry.id.length === 0 ||
+      !isSafeId(entry.id) ||
+      ids.has(entry.id) ||
       name === null ||
       entry.name !== name ||
       !isCadence(entry.cadence) ||
-      typeof entry.createdAt !== "string" ||
-      Number.isNaN(Date.parse(entry.createdAt)) ||
+      !isCreatedAt(entry.createdAt) ||
       completions === null
     ) {
       return null;
     }
+    ids.add(entry.id);
     habits.push({
       id: entry.id,
       name,
@@ -80,22 +107,28 @@ function readV1(value: Record<string, unknown>): HabitStore | null {
 }
 
 function migrateV0(value: Record<string, unknown>, options: LoadOptions): HabitStore | null {
-  if (!Array.isArray(value.habits)) return null;
+  if (!Array.isArray(value.habits) || value.habits.length > MAX_HABITS) return null;
   const createId = options.createId ?? (() => crypto.randomUUID());
   const now = options.now ?? new Date();
   const habits: Habit[] = [];
+  const ids = new Set<string>();
 
   for (const entry of value.habits) {
     if (!isRecord(entry) || !Array.isArray(entry.completedDates)) return null;
-    if (entry.completedDates.some((date) => typeof date !== "string")) return null;
     const name = normalizeName(entry.name);
     if (name === null) continue;
-    const completions = [...new Set(entry.completedDates.filter(isIsoDate))].sort();
+    const completions = looseDates(entry.completedDates);
+    if (completions === null) return null;
+    const id = createId();
+    if (!isSafeId(id) || ids.has(id)) return null;
+    ids.add(id);
+    const createdAt = completions[0] ? `${completions[0]}T00:00:00.000Z` : now.toISOString();
+    if (!isCreatedAt(createdAt)) return null;
     habits.push({
-      id: createId(),
+      id,
       name,
       cadence: "daily",
-      createdAt: completions[0] ? `${completions[0]}T00:00:00.000Z` : now.toISOString(),
+      createdAt,
       completions,
     });
   }
@@ -111,7 +144,11 @@ export function loadHabits(storage: StoragePort, options: LoadOptions = {}): Loa
     return { status: "unavailable" };
   }
 
-  if (raw === null || raw.trim() === "") {
+  if (raw === null) {
+    return { status: "ready", store: emptyStore(), migratedFrom: null };
+  }
+  if (raw.length > MAX_RAW_LENGTH) return { status: "corrupt" };
+  if (raw.trim() === "") {
     return { status: "ready", store: emptyStore(), migratedFrom: null };
   }
 
@@ -144,22 +181,30 @@ export function loadHabits(storage: StoragePort, options: LoadOptions = {}): Loa
 
 function prepareStore(store: HabitStore): HabitStore | null {
   if (store.version !== CURRENT_STORE_VERSION || !Array.isArray(store.habits)) return null;
+  if (store.habits.length > MAX_HABITS) return null;
   const habits: Habit[] = [];
+  const ids = new Set<string>();
   for (const habit of store.habits) {
     const name = normalizeName(habit.name);
-    const completions = normalizeDates(habit.completions);
+    const completions = strictDates(habit.completions);
     if (
-      typeof habit.id !== "string" ||
-      habit.id.length === 0 ||
+      !isSafeId(habit.id) ||
+      ids.has(habit.id) ||
       name === null ||
       !isCadence(habit.cadence) ||
-      typeof habit.createdAt !== "string" ||
-      Number.isNaN(Date.parse(habit.createdAt)) ||
+      !isCreatedAt(habit.createdAt) ||
       completions === null
     ) {
       return null;
     }
-    habits.push({ ...habit, name, completions });
+    ids.add(habit.id);
+    habits.push({
+      id: habit.id,
+      name,
+      cadence: habit.cadence,
+      createdAt: habit.createdAt,
+      completions,
+    });
   }
   return { version: CURRENT_STORE_VERSION, habits };
 }
